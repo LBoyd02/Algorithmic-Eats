@@ -1,49 +1,117 @@
-# History files
+#==============================================================================
+# FINANCIAL DATA SCIENCE .gitignore
+# Last Updated: January 2026
+#==============================================================================
+
+#------------------------------------------------------------------------------
+# SECURITY & CREDENTIALS - NEVER COMMIT THESE
+#------------------------------------------------------------------------------
+# Environment Variables & Secrets
+.env
+.env.local
+.env.*.local
+*.secret
+secrets.yml
+credentials.json
+config/local.yml
+config/secrets.yml
+
+# API Keys and Service Credentials
+*_api_key*
+*_secret_key*
+*.pem
+*.key
+*.cert
+.aws/
+.azure/
+
+# Database Connection Strings
+*connection_string*
+database.yml
+db_config.json
+
+# SSH Keys
+id_rsa*
+*.pub
+
+#------------------------------------------------------------------------------
+# R-SPECIFIC FILES
+#------------------------------------------------------------------------------
+# History Files
 .Rhistory
 .Rapp.history
 
-# Session Data files
+# Session Data Files
 .RData
 .RDataTmp
 
-# User-specific files
+# User-specific Files
 .Ruserdata
-
-# Example code in package build process
-*-Ex.R
-
-# Output files from R CMD build
-/*.tar.gz
-
-# Output files from R CMD check
-/*.Rcheck/
-
-# RStudio files
 .Rproj.user/
 
-# produced vignettes
-vignettes/*.html
-vignettes/*.pdf
+# RStudio Project Files
+# *.Rproj
 
-# OAuth2 token, see https://github.com/hadley/httr/releases/tag/v0.3
+# OAuth Tokens
 .httr-oauth
+.httr-oauth2
 
-# knitr and R markdown default cache directories
+# knitr & R Markdown Default Cache Directories
 *_cache/
 /cache/
+*_files/
 
-# Temporary files created by R markdown
-*.utf8.md
-*.knit.md
+# Temporary R Files
+*.Rout
+*.Rcheck/
 
-# R Environment Variables
-.Renviron
-
-# pkgdown site
+# pkgdown Site
 docs/
+doc/
+Meta/
 
-# translation temp files
+# Translation Temp Files
 po/*~
 
-# RStudio Connect folder
-rsconnect/
+#------------------------------------------------------------------------------
+# PYTHON-SPECIFIC FILES
+#------------------------------------------------------------------------------
+# Byte-compiled / Optimized / DLL Files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv
+pipenv/
+.virtualenv/
+
+#------------------------------------------------------------------------------
+# LOGS & TEMPORARY FILES
+#------------------------------------------------------------------------------
+# Log Files
+*.log
+logs/**
+*.out
+
+# Temporary Files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+Thumbs.db
+
+#------------------------------------------------------------------------------
+# macOS SYSTEM FILES
+#------------------------------------------------------------------------------
+# macOS Metadata Files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+/.quarto/
+**/*.quarto_ipynb
