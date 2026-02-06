@@ -6,8 +6,7 @@ library(janitor)
 
 
 
-food_bridge <- readr::read_csv("data/food_bridge.csv", show_col_types = FALSE) %>% janitor::clean_names() %>% dplyr::mutate(statcan_product = stringr::str_squish(statcan_product))
-
+load("data/food_bridge.RData")
 
 
 get_statcan_prices <- function() {
@@ -29,8 +28,9 @@ get_cnf_data <- function() {
   download.file(url2, temp2, quiet = TRUE, mode = "wb")
   food_names <- utils::read.csv(unz(temp2, "FOOD NAME.csv"))
   nutrient_amount <- utils::read.csv(unz(temp2, "NUTRIENT AMOUNT.csv"))
+  food_group <- utils::read.csv(unz(temp2, "FOOD GROUP.csv"))
   unlink(temp2)
-  list(food_names = food_names, nutrient_amount = nutrient_amount)
+  list(food_names = food_names, nutrient_amount = nutrient_amount, food_group = food_group)
 }
 
 
@@ -61,34 +61,43 @@ statcan_price_to_100g <- function(statcan_product, statcan_price) {
 }
 
 
-make_cnf_macros <- function(food_names, nutrient_amount) {
-  clean_food <- food_names %>%
-  dplyr::filter(FoodGroupID %in% c(1,4,5,6,7,8,9,10,11,12,13,14,15,16,18,19,20)) %>%
-  dplyr::transmute(food_id = FoodID, food_name = FoodDescription)
+make_cnf_macros <- function(food_names, nutrient_amount, food_group) {
+  
+  
+  
+  food_group_lu <- food_group %>%
+    dplyr::transmute(food_group = FoodGroupID, food_group_name = FoodGroupName)
+  
   
   macros <- nutrient_amount %>%
-  dplyr::filter(NutrientID %in% c(203, 204, 205)) %>%
-  dplyr::mutate(macro = dplyr::case_when(NutrientID == 203 ~ "protein_g", NutrientID == 204 ~ "fat_g", NutrientID == 205 ~ "carb_g")) %>%
-  dplyr::transmute(food_id = FoodID, macro, value = NutrientValue) %>%
-  tidyr::pivot_wider(names_from = macro, values_from = value)
+    dplyr::filter(NutrientID %in% c(203, 204, 205)) %>%
+    dplyr::mutate(macro = dplyr::case_when(NutrientID == 203 ~ "protein_g", NutrientID == 204 ~ "fat_g", NutrientID == 205 ~ "carb_g")) %>%
+    dplyr::transmute(food_id = FoodID, macro, value = NutrientValue) %>%
+    tidyr::pivot_wider(names_from = macro, values_from = value)
   
-  clean_food %>%
-  dplyr::left_join(macros, by = "food_id")
+  clean_food <- food_names %>%
+    dplyr::transmute(food_id = FoodID, food_name = FoodDescription, food_group = FoodGroupID) %>%
+    dplyr::left_join(food_group_lu, by = "food_group") %>% 
+    dplyr::left_join(macros, by = "food_id")
+    
+  clean_food
 }
 
 
 build_model_foods <- function() {
   prices <- get_statcan_prices()
   cnf <- get_cnf_data()
-  cnf_macros <- make_cnf_macros(cnf$food_names, cnf$nutrient_amount)
+  cnf_macros <- make_cnf_macros(cnf$food_names, cnf$nutrient_amount, cnf$food_group)
   prices_latest <- prices %>%
   dplyr::filter(location == "Canada") %>%
-  dplyr::group_by(statcan_product) %>% dplyr::filter(date == max(date, na.rm = TRUE)) %>%
+  dplyr::group_by(statcan_product) %>% 
+  dplyr::filter(date == max(date, na.rm = TRUE)) %>%
   dplyr::ungroup() %>%
   dplyr::mutate(price_100g = statcan_price_to_100g(statcan_product, statcan_price), food_name = stringr::str_squish(stringr::str_remove(statcan_product, ",.*$"))) %>% 
   dplyr::inner_join(food_bridge, by = "statcan_product") %>%
-  dplyr::left_join(cnf_macros %>% dplyr::select(food_id, protein_g, carb_g, fat_g), by = "food_id") %>%
-  dplyr::transmute(id = food_id, name = food_name, price_100g = round(price_100g, 4), protein_g, carb_g, fat_g) %>%
+  dplyr::left_join(cnf_macros %>% 
+  dplyr::select(food_id, food_group_name, protein_g, carb_g, fat_g), by = "food_id") %>%
+  dplyr::transmute(id = food_id, name = food_name, food_group = food_group_name, price_100g = round(price_100g, 4), protein_g, carb_g, fat_g) %>%
   dplyr::filter(!is.na(price_100g), !is.na(protein_g), !is.na(carb_g), !is.na(fat_g)) %>%
   dplyr::group_by(id) %>%
   dplyr::slice_max(order_by = price_100g, n = 1, with_ties = FALSE) %>%
@@ -97,6 +106,10 @@ build_model_foods <- function() {
 
 
 final_food_dataset <- build_model_foods()
+
+
+
+
 
 total_inches <- 48:(7 * 12)
 
