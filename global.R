@@ -97,3 +97,16 @@ build_model_foods <- function() {
 
 
 final_food_dataset <- build_model_foods()
+
+total_inches <- 48:(7 * 12)
+
+height <- tibble(
+  feet = total_inches %/% 12,
+  inches = total_inches %% 12,
+  cm = round(total_inches * 2.54),
+  concat = paste0(
+    feet, "'",
+    inches, "\" (",
+    cm, " cm)"
+  )
+)

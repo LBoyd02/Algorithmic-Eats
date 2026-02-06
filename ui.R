@@ -34,10 +34,23 @@ ui <- bslib::page_navbar(
             choices = c("Canada"),
             selected = "Canada"
           ),
-          
+          numericInput("age", "Age (Years)", 21),
+          selectInput("sex", "Sex",
+                      choices = c("Male", "Female"),
+                      selected = "Male"),
+          selectInput("height_cm", "Height", 
+                      choices = setNames(height$cm, height$concat), 
+                      selected = 178),
           numericInput("weight", "Current Weight (lbs)", 180),
           selectInput("goal", "Goal", choices = c("Bulking", "Cutting", "Maintenance")),
-          
+          sliderInput(
+            "lift_sessions",
+            "Weightlifting sessions per week",
+            min = 0,
+            max = 7,
+            value = 3,
+            step = 1
+          ),
           selectizeInput(
             "allergies", "Foods to Exclude",
             choices = sort(unique(final_food_dataset$name)),
