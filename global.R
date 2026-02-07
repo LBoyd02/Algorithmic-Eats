@@ -4,6 +4,39 @@ library(readr)
 library(stringr)
 library(janitor)
 
+# --- Gym Map Global Variables & Functions ---
+r <- shiny::reactiveValues()
+gym_colors <- c("#F67028", "#499CD4", "#E0463E","#E1F628", "#8149D4")
+
+api_key <- ""
+main_font <- "font-family: 'Times New Roman', serif; font-size: 14px;"
+legend_font <- "font-family: 'Times New Roman', serif; font-size: 18px;"
+label_font <- list(
+  "font-family" = "'Times New Roman', Times, serif",
+  "font-weight" = "bold",
+  "font-size" = "14px"
+)
+
+get_lat_lon <- function(address){
+  geo_request <- httr2::request("https://maps.googleapis.com/maps/api/geocode/json") %>% 
+    httr2::req_url_query(
+      address = address,
+      key = api_key
+    )
+  
+  # Grabs Geocoded Lat, Long from API
+  geo_response <- httr2::req_perform(geo_request) %>% 
+    httr2::resp_body_json()
+
+  latlong <- purrr::pluck(geo_response, "results", 1, "geometry", "location")
+  
+  if (length(latlong) > 0){
+    return(latlong)
+  } else {
+    return(NULL)
+  }
+}
+# -------
 
 
 load("data/food_bridge.RData")
