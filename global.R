@@ -8,7 +8,7 @@ library(janitor)
 r <- shiny::reactiveValues()
 gym_colors <- c("#F67028", "#499CD4", "#E0463E","#E1F628", "#8149D4")
 
-api_key <- API_KEY
+api_key <- readr::read_file("./map_api_key.txt")
 main_font <- "font-family: 'Times New Roman', serif; font-size: 14px;"
 legend_font <- "font-family: 'Times New Roman', serif; font-size: 18px;"
 label_font <- list(
