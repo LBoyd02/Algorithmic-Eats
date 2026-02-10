@@ -4,10 +4,109 @@ library(leaflet)
 library(httr2)
 library(googlePolylines)
 
+#--- calcs for macro optimizer ---
+ weight_simulation <- function(height_cm, 
+                               weight_lb, 
+                               age, 
+                               sex,
+                               cal, 
+                               cardio_frequency, 
+                               lift_frequency,
+                               weeks = 52
+ ){
+   lb_to_kg <- function(lb) lb * 0.453592
+   
+   #Mifflin-St Jeor bmr is the basal metabolic rate - how many calories a person burns naturally throughout the day
+   mifflin_bmr <- function(kg, cm, age, sex) {
+     base <- 10 * kg + 6.25 * cm - 5 * age
+     if (tolower(sex) == "male") base + 5 else base - 161
+   }
+   
+   #converting our activity inputs to approximate multipliers for calculations
+   cardio_addon <- switch(
+     cardio_frequency,
+     " Rarely / none" = 0,
+     " 1-2 sessions / week" = 0.10,
+     " 3-5 sessions / week" = 0.20,
+     " 6-7 sessions / week" = 0.35,
+     0
+   )
+   
+   lift_addon <- switch(
+     lift_frequency,
+     " None" = 0,
+     " 1-2 sessions / week" = 0.10,
+     " 3-4 sessions / week" = 0.20,
+     " 5+ sessions / week" = 0.35,
+     0
+   )
+   
+   #to calculate total daily energy expenditure (calories)
+   activity_factor <- 1.2 + cardio_addon + lift_addon
+   
+   #initialize df to track cal over time using below metrics
+   out <- data.frame(
+     week = 0:weeks,
+     weight_lb = NA_real_,
+     bmr = NA_real_,
+     tdee = NA_real_,
+     kcal_balance_day = NA_real_
+   )
+   
+   w <- weight_lb
+   
+   for (t in 0:weeks) {
+     kg <- lb_to_kg(w)
+     bmr <- mifflin_bmr(kg, height_cm, age, sex)
+     tdee <- bmr * activity_factor
+     bal_day <- cal - tdee
+     
+     out$weight_lb[t + 1] <- w
+     out$bmr[t + 1] <- bmr
+     out$tdee[t + 1] <- tdee
+     out$kcal_balance_day[t + 1] <- bal_day
+     
+     #update for week and convert to weight (3500 kcal = 1 lb)
+     delta_w_week <- (7 * bal_day)/ 3500
+     w <- w + delta_w_week
+   }
+   
+   out
+ }
+
+
 server <- function(input, output, session) {
   
   # --- Macro Calculator ---
   
+  sim_data <- reactive({
+    
+    weight_simulation(
+      height_cm = input$height_cm,
+      weight_lb = input$weight_lb,
+      age = input$age,
+      sex = input$sex,
+      cal = input$cal,
+      cardio_frequency = input$cardio_frequency,
+      lift_frequency = input$lift_frequency,
+      weeks = 52
+    )
+    
+  })
+    
+  output$weight_plot <- renderPlot({
+    df <- sim_data()
+    
+    p <- ggplot(df, aes(x = week, y = weight_lb)) +
+      geom_line() +
+      labs(
+        title = "Projected Weight Over Time",
+        x = "Week",
+        y = "Weight (lb)"
+      )
+  })  
+
+   
   
   # --- Grocery Optimizer ---
   

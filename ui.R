@@ -34,7 +34,7 @@ shiny::shinyUI(
         shiny::selectInput("height_cm", "Height",
                     choices = setNames(height$cm, height$concat),
                     selected = 178),
-        shiny::numericInput("weight", "Current Weight (lbs)", 180),
+        shiny::numericInput("weight_lb", "Current Weight (lbs)", 180),
         shiny::numericInput("age", "Age (Years)", 21),
         shiny::selectInput("sex", "Sex",
                     choices = c("Male", "Female"),
@@ -64,12 +64,12 @@ shiny::shinyUI(
             tagList(icon("chair"), " Rarely / none"),
             tagList(icon("walking"), " 1-2 sessions / week"),
             tagList(icon("running"), " 3-5 sessions / week"),
-            tagList(icon("person-biking"), "6-7 sessions / week")
+            tagList(icon("person-biking"), " 6-7 sessions / week")
           ),
           selected = "cardio_low"
         ),
         shiny::radioButtons(
-          "lift_freq",
+          "lift_frequency",
           "Weight Training Frequency",
           choiceValues = c("lift_none",
                            "lift_low",
@@ -114,7 +114,15 @@ shiny::shinyUI(
     shinydashboard::dashboardBody(
       shinydashboard::tabItems(
         
-        shinydashboard::tabItem(tabName = "Macro_Calc", "Throw Macro Optimizer stuff here"),
+        shinydashboard::tabItem(tabName = "Macro_Calc",
+                                fluidRow(
+                                  box(title = 'Daily Calorie Consumption', width = 3,
+                                      solidHeader = TRUE, status = 'primary',
+                                      sliderInput('cal', 'Calorie Consumption',
+                                                  min = 1200, max = 5000, value = 2500,
+                                                  step = 50, ticks = FALSE))
+                                )
+                                ),
         
         shinydashboard::tabItem(tabName = "Grocery_Opt", "Throw Grocery Optimizer stuff here"),
         
