@@ -3,6 +3,7 @@ library(plotly)
 library(leaflet)
 library(httr2)
 library(googlePolylines)
+library(tidyverse)
 
 #--- calcs for macro optimizer ---
  weight_simulation <- function(height_cm, 
@@ -12,8 +13,14 @@ library(googlePolylines)
                                cal, 
                                cardio_frequency, 
                                lift_frequency,
-                               weeks = 52
- ){
+                               weeks = 52){
+   
+   height_cm <- as.numeric(height_cm)
+   weight_lb <- as.numeric(weight_lb)
+   age <- as.numeric(age)
+   sex <- as.character(sex)
+   cal <- as.numeric(cal)
+   
    lb_to_kg <- function(lb) lb * 0.453592
    
    #Mifflin-St Jeor bmr is the basal metabolic rate - how many calories a person burns naturally throughout the day
@@ -25,19 +32,19 @@ library(googlePolylines)
    #converting our activity inputs to approximate multipliers for calculations
    cardio_addon <- switch(
      cardio_frequency,
-     " Rarely / none" = 0,
-     " 1-2 sessions / week" = 0.10,
-     " 3-5 sessions / week" = 0.20,
-     " 6-7 sessions / week" = 0.35,
+     "cardio_none" = 0,
+     "cardio_low" = 0.10,
+     "cardio_mid" = 0.20,
+     "cardio_high" = 0.35,
      0
    )
    
    lift_addon <- switch(
      lift_frequency,
-     " None" = 0,
-     " 1-2 sessions / week" = 0.10,
-     " 3-4 sessions / week" = 0.20,
-     " 5+ sessions / week" = 0.35,
+     "lift_none" = 0,
+     "lift_low" = 0.10,
+     "lift_mid" = 0.20,
+     "lift_high" = 0.35,
      0
    )
    
@@ -97,7 +104,7 @@ server <- function(input, output, session) {
   output$weight_plot <- renderPlot({
     df <- sim_data()
     
-    p <- ggplot(df, aes(x = week, y = weight_lb)) +
+    ggplot(df, aes(x = week, y = weight_lb)) +
       geom_line() +
       labs(
         title = "Projected Weight Over Time",

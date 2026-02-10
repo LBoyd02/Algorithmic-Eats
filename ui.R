@@ -121,6 +121,14 @@ shiny::shinyUI(
                                       sliderInput('cal', 'Calorie Consumption',
                                                   min = 1200, max = 5000, value = 2500,
                                                   step = 50, ticks = FALSE))
+                                ),
+                                tabBox(
+                                  title = "Progression",
+                                  width = 12,
+                                    tabPanel(
+                                      "Weight",
+                                      plotOutput("weight_plot", height = 320)
+                                    )
                                 )
                                 ),
         
