@@ -10,9 +10,11 @@ library(tidyverse)
                                weight_lb, 
                                age, 
                                sex,
+                               body_type,
                                cal, 
                                cardio_frequency, 
                                lift_frequency,
+                               goal,
                                weeks = 52){
    
    height_cm <- as.numeric(height_cm)
@@ -20,6 +22,8 @@ library(tidyverse)
    age <- as.numeric(age)
    sex <- as.character(sex)
    cal <- as.numeric(cal)
+   body_type <- as.character(body_type)
+   goal <- as.numeric(goal)
    
    lb_to_kg <- function(lb) lb * 0.453592
    
@@ -27,7 +31,28 @@ library(tidyverse)
    mifflin_bmr <- function(kg, cm, age, sex) {
      base <- 10 * kg + 6.25 * cm - 5 * age
      if (tolower(sex) == "male") base + 5 else base - 161
+    
    }
+   
+   bf0 <- if (tolower(sex) == "male") {
+     
+    switch (body_type,
+      lean = 0.12,
+      muscular = 0.15,
+      balanced = 0.2,
+      overweight = 0.28,
+      0.2
+    )
+   } else {
+     switch (body_type,
+      lean = 0.2,
+      muscular = 0.24,
+      balanced = 0.3,
+      overweight = 0.38,
+      0.3
+     )
+   }
+   
    
    #converting our activity inputs to approximate multipliers for calculations
    cardio_addon <- switch(
@@ -51,19 +76,30 @@ library(tidyverse)
    #to calculate total daily energy expenditure (calories)
    activity_factor <- 1.2 + cardio_addon + lift_addon
    
+   #initialize body fat and fat-free mass
+   fat_lb <- weight_lb * bf0
+   ffm_lb <- weight_lb - fat_lb
+   
+   min_bf <- if (tolower(sex) == "male")  0.05 else 0.13
+   min_fat_from_ffm <- function(ffm, min_bf) (min_bf / (1 - min_bf)) * ffm
+   
    #initialize df to track cal over time using below metrics
    out <- data.frame(
      week = 0:weeks,
      weight_lb = NA_real_,
      bmr = NA_real_,
      tdee = NA_real_,
-     kcal_balance_day = NA_real_
+     kcal_balance_day = NA_real_,
+     fat_lb = NA_real_,
+     ffm_lb = NA_real_,
+     bf_pct = NA_real_
    )
    
-   w <- weight_lb
-   
    for (t in 0:weeks) {
+     
+     w <- fat_lb + ffm_lb
      kg <- lb_to_kg(w)
+     
      bmr <- mifflin_bmr(kg, height_cm, age, sex)
      tdee <- bmr * activity_factor
      bal_day <- cal - tdee
@@ -72,10 +108,63 @@ library(tidyverse)
      out$bmr[t + 1] <- bmr
      out$tdee[t + 1] <- tdee
      out$kcal_balance_day[t + 1] <- bal_day
+     out$fat_lb[t + 1] <- fat_lb
+     out$ffm_lb[t + 1] <- ffm_lb
+     out$bf_pct[t + 1] <- 100 * fat_lb / (fat_lb + ffm_lb)
      
      #update for week and convert to weight (3500 kcal = 1 lb)
      delta_w_week <- (7 * bal_day)/ 3500
-     w <- w + delta_w_week
+     
+  #If you lift more, you will be able to retain more muscle when losing weight
+     if (delta_w_week < 0) {
+       ffm_loss_frac <- switch(
+         lift_frequency,
+         "lift_none" = 0.25,
+         "lift_low" = 0.2,
+         "lift_mid" = 0.15,
+         "lift_high" = 0.1,
+         0.2
+       )
+       
+       if (goal == 2) ffm_loss_frac <- ffm_loss_frac - 0.03
+       
+       ffm_loss_frame <- max(0.06, min(0.35, ffm_loss_frac))
+       
+       loss <- abs(delta_w_week)
+       ffm_loss <- loss * ffm_loss_frac
+       fat_loss <- loss - ffm_loss
+       
+       ffm_lb <- max(0, ffm_lb - ffm_loss)
+       fat_lb <- max(0, fat_lb - fat_loss)
+     } else if (delta_w_week > 0) {
+       #on the other hand, if gaining weight, lifters will gain relatively more muscle than fat
+       
+       ffm_gain_frac <- switch(
+         lift_frequency,
+         "lift_none" = 0.1,
+         "lift_low" = 0.2,
+         "lift_mid" = 0.3,
+         "lift_high" = 0.4,
+         0.2
+       )
+       
+       if (goal == 4) ffm_gain_frac <- ffm_gain_frac + 0.03
+       if (goal == 5) ffm_gain_frac <- ffm_gain_frac + 0.05
+       
+       ffm_gain_frac <- max(0.10, min(0.55, ffm_gain_frac))
+       
+       gain <- delta_w_week
+       ffm_gain <- gain * ffm_gain_frac
+       fat_gain <- gain - ffm_gain
+       
+       ffm_lb <- ffm_lb + ffm_gain
+       fat_lb <- fat_lb + fat_gain     
+     }
+     
+     #minimum BF% so users can't break the system
+     
+     min_fat <- min_fat_from_ffm(ffm_lb, min_bf)
+     if (fat_lb < min_fat) fat_lb <- min_fat
    }
    
    out
@@ -83,11 +172,6 @@ library(tidyverse)
 
 
 server <- function(input, output, session) {
-  
-  # - Maintenance Calories -
-  
-
-  
   
   # --- Macro Calculator ---
   
@@ -101,22 +185,40 @@ server <- function(input, output, session) {
       cal = input$cal,
       cardio_frequency = input$cardio_frequency,
       lift_frequency = input$lift_frequency,
-      weeks = 52
+      weeks = 52,
+      body_type = input$body_type,
+      goal = input$goal
+    )
+  })
+  
+  output$goal_label <- renderUI({
+    lab <- switch(
+      as.character(input$goal),
+      "1" = "Weight Loss - ",
+      "2" = "Cut & Sculpt - ",
+      "3" = "Maintain & Perform - ",
+      "4" = "Lean Bulk - ",
+      "5" = "Bulk - "
+    )
+    goal_desc <- switch(
+      as.character(input$goal),
+      "1" = "Prioritize weight loss",
+      "2" = "Lose weight and preserve/gain muscle",
+      "3" = "Maintain weight and preserve/gain muscle",
+      "4" = "Gain muscle with slight weight gain",
+      "5" = "Prioritize muscle gain"
     )
     
+    tagList(
+      tags$b(paste0("Selected goal: ", lab)),
+      tags$span(goal_desc)
+    )
   })
     
   maintenance_calories <- reactive({
     df <- sim_data()
       round(df$tdee[1])
   })   
-  
-  output$maintenance_calories <- renderText({
-    paste0(
-      format(maintenance_calories(), big.mark = ","),
-      " kcal/day"
-    )
-  })
   
   output$maint_box <- renderValueBox({
     valueBox(
@@ -127,19 +229,104 @@ server <- function(input, output, session) {
     )
   })
   
+  balance_kcal <- reactive({
+    df <- sim_data()
+    df$kcal_balance_day[1]
+  })
+  
+  protein_min_g <- reactive({
+    #protein g/lb by goal
+    base_g_lb <- switch(
+      as.character(input$goal),
+      "1" = 0.75,
+      "2" = 1,
+      "3" = 0.75,
+      "4" = 0.8,
+      "5" = 0.8,
+      0.75
+    )
+    
+    #bump up protein to recover from lifting
+    lift_bump <- switch(
+      input$lift_frequency,
+      "lift_none" = 0,
+      "lift_low" = 0.05,
+      "lift_mid" = 0.08,
+      "lift_high" = 0.1,
+      0.05
+      )
+    (base_g_lb + lift_bump) * as.numeric(input$weight_lb)
+  })
+  
+  output$balance_box <- renderValueBox({
+    b <- balance_kcal()
+    valueBox(
+      value = paste0(format(round(abs(b)), big.mark = ","), " kcal/day"),
+      subtitle = if (b >= 0) "Estimated surplus" else "Estimated deficit",
+      icon = icon("scale-unbalanced"),
+      color = if (b >= 0) "yellow" else "aqua"
+    )
+  })
+  
+  output$protein_box <- renderValueBox({
+    valueBox(
+      value = paste0(format(round(protein_min_g()), big.mark = ","), " grams"),
+      subtitle = "Minimum daily protein target",
+      icon = icon("drumstick-bite"),
+      color = "olive"
+    )
+  })
+  
+  output$year_box <- renderValueBox({
+    df <- sim_data()
+    now <- df[1, ]
+    yr <- df[nrow(df), ]
+    
+    valueBox(
+      value = paste0(round(yr$weight_lb, 1), " lb"),
+      subtitle = paste0("Body Fat % after 1 year: ", round(yr$bf_pct, 1), "% (today: ", round(now$bf_pct, 1), "%)"),
+      icon = icon("bullseye"),
+      color = "teal"
+    )
+  })
+  
   output$weight_plot <- renderPlot({
     df <- sim_data()
     
-    ggplot(df, aes(x = week, y = weight_lb)) +
-      geom_line(linewidth = 2) +
+    ggplot(df, aes(x = week)) +
+      geom_line(aes(y = weight_lb, color = "Weight"), linewidth = 2) +
+      geom_line(aes(y = ffm_lb, color = "Fat-Free Mass"), linewidth = 1.5, linetype = "dashed") +
+      scale_color_manual(
+        values = c(
+          "Weight" = "limegreen",
+          "Fat-Free Mass" = "firebrick2"
+        )
+      ) +
+      scale_y_continuous(expand = expansion(mult = c(0.5, 0.5))) +
       labs(
         title = "Projected Weight Over Time",
         x = "Week",
-        y = "Weight (lb)"
+        y = "weight (lb)"
       )
   })    
   
-  
+  output$comparison_plot <- renderPlot({
+    df <- sim_data()
+    now <- df[1, ]
+    yr <- df[nrow(df), ]
+    
+    comp <- data.frame(
+      time = c("Today", "Today", "1 Year", "1 Year"),
+      component = c("Weight", "Body Fat", "Weight", "Body Fat"),
+      value = c(now$weight_lb, now$fat_lb, yr$weight_lb, yr$fat_lb)
+    )
+    
+    comp$time <- factor(comp$time, levels = c("Today", "1 Year"))
+    
+    ggplot(comp, aes(x = time, y = value, fill = component)) +
+      geom_col() +
+      labs(title = "Body Composition (Fat vs Lean)", x = NULL, y = "Pounds") 
+  })
   
   # --- Grocery Optimizer ---
   

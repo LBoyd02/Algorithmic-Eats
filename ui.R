@@ -120,22 +120,47 @@ shiny::shinyUI(
                                       width = 4,
                                       solidHeader = TRUE, 
                                       status = 'primary',
+    #Goal Input
+                                      sliderInput(
+                                        "goal",
+                                        "Goal (1-5)",
+                                        min = 1, max = 5, value = 3, step = 1,
+                                        ticks = FALSE
+                                      ),
+    #Dynamic goal label for style and aesthetics
+    uiOutput("goal_label"),
+    tags$hr(),
+    
+      
+                                      
+                                      
+                                      
+    #Calorie Slider --
                                       sliderInput('cal', 'Slide to see how the chart changes based on your calorie intake',
                                                   min = 1200, max = 5000, value = 2500,
-                                                  step = 50, ticks = FALSE),
-                                      valueBoxOutput("maint_box",
-                                                     width = 12)
-                                      
-                                ),
-                                tabBox(
-                                  title = "Progression",
-                                  width = 8,
-                                    tabPanel(
-                                      "Weight",
-                                      plotOutput("weight_plot", height = 600)
-                                    )
+                                                  step = 10, ticks = FALSE),
+                                      valueBoxOutput("maint_box", width = 12),
+                                      valueBoxOutput("balance_box", width = 12),
+                                      valueBoxOutput("protein_box", width = 12),
+                                      valueBoxOutput("year_box", width = 12)
+                                  ),
+    
+
+    #Line Chart --
+                             tabBox(
+                                title = "Progression",
+                                width = 8,
+                                tabPanel("Forecast",
+                                     plotOutput("weight_plot", height = 730)
+                                    ),
+                                
+                                
+                                tabPanel("Body Composition",
+                                  plotOutput("comparison_plot", height = 730)
                                 )
-                                )),
+                               )
+                              )
+                             ),
         
         shinydashboard::tabItem(tabName = "Grocery_Opt", "Throw Grocery Optimizer stuff here"),
         
