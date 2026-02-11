@@ -84,6 +84,11 @@ library(tidyverse)
 
 server <- function(input, output, session) {
   
+  # - Maintenance Calories -
+  
+
+  
+  
   # --- Macro Calculator ---
   
   sim_data <- reactive({
@@ -101,19 +106,40 @@ server <- function(input, output, session) {
     
   })
     
+  maintenance_calories <- reactive({
+    df <- sim_data()
+      round(df$tdee[1])
+  })   
+  
+  output$maintenance_calories <- renderText({
+    paste0(
+      format(maintenance_calories(), big.mark = ","),
+      " kcal/day"
+    )
+  })
+  
+  output$maint_box <- renderValueBox({
+    valueBox(
+      value = paste0(format(round(maintenance_calories()), big.mark = ","), " Calories"),
+      subtitle = "Estimated daily consumption to maintain weight",
+      icon = icon("burger"),
+      color = "blue"
+    )
+  })
+  
   output$weight_plot <- renderPlot({
     df <- sim_data()
     
     ggplot(df, aes(x = week, y = weight_lb)) +
-      geom_line() +
+      geom_line(linewidth = 2) +
       labs(
         title = "Projected Weight Over Time",
         x = "Week",
         y = "Weight (lb)"
       )
-  })  
-
-   
+  })    
+  
+  
   
   # --- Grocery Optimizer ---
   

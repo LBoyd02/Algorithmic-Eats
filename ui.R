@@ -47,7 +47,7 @@ shiny::shinyUI(
           choiceValues = c("lean", "balanced", "muscular", "overweight"),
           choiceNames = list(
             tagList(icon("user"), " Underweight"),
-            tagList(icon("dumbbell"), " Athletic"),
+            tagList(icon("dumbbell"), " Muscular"),
             tagList(icon("user-friends"), " Balanced"),
             tagList(icon("user-plus"), " Overweight")
           ),
@@ -116,21 +116,26 @@ shiny::shinyUI(
         
         shinydashboard::tabItem(tabName = "Macro_Calc",
                                 fluidRow(
-                                  box(title = 'Daily Calorie Consumption', width = 3,
-                                      solidHeader = TRUE, status = 'primary',
-                                      sliderInput('cal', 'Calorie Consumption',
+                                  box(title = 'Diet Optimizer', 
+                                      width = 4,
+                                      solidHeader = TRUE, 
+                                      status = 'primary',
+                                      sliderInput('cal', 'Slide to see how the chart changes based on your calorie intake',
                                                   min = 1200, max = 5000, value = 2500,
-                                                  step = 50, ticks = FALSE))
+                                                  step = 50, ticks = FALSE),
+                                      valueBoxOutput("maint_box",
+                                                     width = 12)
+                                      
                                 ),
                                 tabBox(
                                   title = "Progression",
-                                  width = 12,
+                                  width = 8,
                                     tabPanel(
                                       "Weight",
-                                      plotOutput("weight_plot", height = 320)
+                                      plotOutput("weight_plot", height = 600)
                                     )
                                 )
-                                ),
+                                )),
         
         shinydashboard::tabItem(tabName = "Grocery_Opt", "Throw Grocery Optimizer stuff here"),
         
