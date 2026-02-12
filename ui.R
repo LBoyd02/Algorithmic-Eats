@@ -1,7 +1,6 @@
 library(shiny)
 library(shinydashboard)
 library(leaflet)
-library(DT)
 
 shiny::shinyUI(
   shinydashboard::dashboardPage(
@@ -84,6 +83,33 @@ shiny::shinyUI(
       # --- Grocery Opt Calculator Side Panel ---
       shiny::conditionalPanel(
         condition = "input.tabs == 'Grocery_Opt'",
+        
+        # region selector
+        shiny::selectInput(
+          "grocery_location",
+          "Price location",
+          choices = c(
+            "Canada",
+            "Alberta",
+            "British Columbia",
+            "Manitoba",
+            "New Brunswick",
+            "Newfoundland and Labrador",
+            "Nova Scotia",
+            "Ontario",
+            "Prince Edward Island",
+            "Quebec",
+            "Saskatchewan"
+            ),
+          selected = "Canada"
+        ),
+        
+        # allergies selector
+        shiny::checkboxGroupInput(
+          "grocery_allergies",
+          "Allergies (remove food groups)",
+          choices = c("Gluten", "Lactose Intolerance", "Nuts")
+        ),
         shiny::numericInput("grocery_budget", "Monthly Budget ($)", value = 500, min = 100, step = 50),
         shiny::actionButton("generate_grocery", "Generate Monthly Plan", class = "btn-success")
       ),
@@ -92,7 +118,7 @@ shiny::shinyUI(
         condition = "input.tabs == 'Gym_Map'",
         
         shiny::textInput("address", "Address",
-                         value = "11211 Saskatchewan Dr NW, Edmonton, AB"),
+                         value = "11210 87 Ave NW, Edmonton, AB T6G 2G5"),
         
         shiny::selectInput("selected_gym", "Gym Selected",
                            choices = NULL,
