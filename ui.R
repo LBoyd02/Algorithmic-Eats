@@ -84,53 +84,23 @@ shiny::shinyUI(
       # --- Grocery Opt Calculator Side Panel ---
       shiny::conditionalPanel(
         condition = "input.tabs == 'Grocery_Opt'",
+        shiny::numericInput("grocery_budget", "Monthly Budget ($)", value = 500, min = 100, step = 50),
+        shiny::actionButton("generate_grocery", "Generate Monthly Plan", class = "btn-success")
+      ),
+      # --- Gym Map Side Panel ---
+      shiny::conditionalPanel(
+        condition = "input.tabs == 'Gym_Map'",
         
-        shiny::selectInput(
-          "height_cm_2", "Height",
-          choices  = setNames(height$cm, height$concat),
-          selected = 178
-        ),
-        shiny::numericInput("weight_lb_2", "Current Weight (lbs)", 180),
-        shiny::numericInput("age_2", "Age (Years)", 21),
-        shiny::selectInput("sex_2", "Sex", choices = c("Male", "Female"), selected = "Male"),
+        shiny::textInput("address", "Address",
+                         value = "11211 Saskatchewan Dr NW, Edmonton, AB"),
         
-        tags$hr(),
+        shiny::selectInput("selected_gym", "Gym Selected",
+                           choices = NULL,
+                           selected = NULL),
         
-        shiny::radioButtons(
-          "body_type_2", "Body Archetype",
-          choiceValues = c("lean", "balanced", "muscular", "overweight"),
-          choiceNames  = list(
-            tagList(icon("user"), " Lean"),
-            tagList(icon("user-friends"), " Balanced"),
-            tagList(icon("dumbbell"), " Muscular"),
-            tagList(icon("user-plus"), " Overweight")
-          ),
-          selected = "balanced"
-        ),
-        
-        shiny::radioButtons(
-          "cardio_frequency_2", "Cardio Frequency",
-          choiceValues = c("cardio_none", "cardio_low", "cardio_mid", "cardio_high"),
-          choiceNames  = list(
-            tagList(icon("chair"), " Rarely / none"),
-            tagList(icon("walking"), " 1-2 sessions / week"),
-            tagList(icon("running"), " 3-5 sessions / week"),
-            tagList(icon("person-biking"), " 6-7 sessions / week")
-          ),
-          selected = "cardio_low"
-        ),
-        
-        shiny::radioButtons(
-          "lift_frequency_2", "Weight Training Frequency",
-          choiceValues = c("lift_none", "lift_low", "lift_mid", "lift_high"),
-          choiceNames  = list(
-            tagList(icon("ban"), " None"),
-            tagList(icon("user"), " 1-2 sessions / week"),
-            tagList(icon("dumbbell"), " 3-4 sessions / week"),
-            tagList(icon("weight-hanging"), " 5+ sessions / week")
-          ),
-          selected = "lift_mid"
-        )
+        shiny::selectInput("map_mode", "Type of Travel",
+                           choices = c("Walking" = "walking", "Driving" = "driving"),
+                           selected = "driving")
       )
     ),
     
@@ -188,23 +158,11 @@ shiny::shinyUI(
         
     shinydashboard::tabItem(
       tabName = "Grocery_Opt",
-      fluidRow(
-        box(
-          title = "Monthly Budget",
-          width = 3,
-          solidHeader = TRUE,
-          status = "primary",
-          
-          sliderInput("budget", "Budget ($)", min = 0, max = 2000, value = 1000, step = 25, ticks = FALSE),
-          uiOutput("budget_label"),
-          actionButton("reset_exclusions", "Reset Removed Foods"),
-          tags$hr(),
-          uiOutput("grocery_stats")
-        ),
-        
-        box(title = "Protein", width = 3, solidHeader = TRUE, DT::DTOutput("protein_table")),
-        box(title = "Carbs",   width = 3, solidHeader = TRUE, DT::DTOutput("carb_table")),
-        box(title = "Fats",    width = 3, solidHeader = TRUE, DT::DTOutput("fat_table"))
+      shiny::fluidRow(
+        shinydashboard::box(width = 12, status = "info", solidHeader = TRUE, title = "Plan Summary", shiny::uiOutput("grocery_summary"))
+      ),
+      shiny::fluidRow(
+        shiny::uiOutput("grocery_receipts")
       )
     ),
     

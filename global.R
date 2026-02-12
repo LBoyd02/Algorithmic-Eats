@@ -1,4 +1,3 @@
-# global.R
 library(tidyverse)
 library(readr)
 library(stringr)
@@ -137,35 +136,32 @@ build_model_foods <- function() {
   dplyr::ungroup()
 }
 
-final_food_dataset <- build_model_foods()
+raw_foods_data <- build_model_foods()
 
-final_food_dataset <- final_food_dataset %>%
-  mutate(
-    kcal_100g = 4 * protein_g + 4 * carb_g + 9 * fat_g,
-    protein_kcal_100g = 4 * protein_g,
-    carb_kcal_100g    = 4 * carb_g,
-    fat_kcal_100g     = 9 * fat_g,
-    
-    protein_pct_kcal = if_else(kcal_100g > 0, protein_kcal_100g / kcal_100g, NA_real_),
-    carb_pct_kcal    = if_else(kcal_100g > 0, carb_kcal_100g / kcal_100g, NA_real_),
-    fat_pct_kcal     = if_else(kcal_100g > 0, fat_kcal_100g / kcal_100g, NA_real_),
-    
-    cost_per_kcal     = if_else(kcal_100g > 0, price_100g / kcal_100g, NA_real_),
-    kcal_per_dollar   = if_else(price_100g > 0, kcal_100g / price_100g, NA_real_),
-    
-    cost_per_g_protein  = if_else(protein_g > 0, price_100g / protein_g, NA_real_),
-    protein_per_dollar  = if_else(price_100g > 0, protein_g / price_100g, NA_real_),
-    cost_per_25g_protein = if_else(protein_g > 0, 25 * price_100g / protein_g, NA_real_),
-    
-    protein_density_g_per_kcal = if_else(kcal_100g > 0, protein_g / kcal_100g, NA_real_),
-    
-    serving_g   = 100,
-    kcal_serv   = kcal_100g * serving_g / 100,
-    protein_serv = protein_g * serving_g / 100,
-    cost_serv   = price_100g * serving_g / 100
-  )
 
-food_catalog <- final_food_dataset %>%
+delete_ingredients <- c(
+  "Wheat flour", 
+  "White sugar", 
+  "Brown sugar", 
+  "Icing sugar",
+  "Baking powder",
+  "Baking soda",
+  "Cornstarch",
+  "Yeast",
+  "Vegetable oil",
+  "Canola oil",
+  "Olive oil",
+  "Shortening",
+  "Lard",
+  "Dried lentils",
+  "Dry beans and legumes")
+
+
+
+food_catalog <- raw_foods_data %>%
+  dplyr::filter(!name %in% delete_ingredients) %>%
+  dplyr::filter(food_group != "Babyfoods") %>% 
+  mutate(kcal_100g = 4 * protein_g + 4 * carb_g + 9 * fat_g) %>% 
   filter(
     !is.na(price_100g), price_100g > 0,
     !is.na(kcal_100g),  kcal_100g > 0
@@ -181,9 +177,5 @@ height <- tibble(
   feet = total_inches %/% 12,
   inches = total_inches %% 12,
   cm = round(total_inches * 2.54),
-  concat = paste0(
-    feet, "'",
-    inches, "\" (",
-    cm, " cm)"
-  )
+  concat = paste0(feet, "'", inches, "\" (", cm, " cm)")
 )

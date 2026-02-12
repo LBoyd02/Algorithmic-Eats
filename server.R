@@ -173,6 +173,81 @@ library(DT)
  }
 
 
+# --- grocery optimizer helper function
+get_optimal_basket <- function(food_df, protein_target, fat_target, carb_target, weekly_budget) {
+ 
+ weekly_protein <- protein_target * 7
+ weekly_fat <- fat_target * 7
+ weekly_carb <- carb_target * 7
+ 
+ protein_groups <- c("Beef Products", "Pork Products", "Poultry Products", "Finfish and Shellfish Products", "Dairy and Egg Products")
+ veg_groups <- c("Vegetables and Vegetable Products")
+ carb_groups <- c("Baked Products", "Breakfast cereals", "Cereals, Grains and Pasta", "Fruits and fruit juices")
+ limit_groups <- c("Fats and Oils", "Sweets", "Soups, Sauces and Gravies")
+ 
+ is_protein_src <- as.integer(food_df$food_group %in% protein_groups)
+ is_veg <- as.integer(food_df$food_group %in% veg_groups)
+ is_carb_src <- as.integer(food_df$food_group %in% carb_groups)
+ is_limit_src <- as.integer(food_df$food_group %in% limit_groups)
+ 
+ base_constraints <- matrix(
+   c(food_df$protein_g,
+     food_df$fat_g,
+     food_df$carb_g,
+     food_df$protein_g,
+     food_df$fat_g,
+     food_df$carb_g,
+     is_protein_src,
+     is_veg,
+     is_carb_src,
+     is_limit_src,
+     food_df$price_100g),
+   nrow = 11, byrow = TRUE)
+ 
+ 
+ base_rhs <- c(weekly_protein, 
+               weekly_fat, 
+               weekly_carb, 
+               weekly_protein * 1.15, 
+               weekly_fat * 1.15, 
+               weekly_carb * 1.15,
+               15, 15, 10, 3,
+               weekly_budget)
+ 
+ base_dir <- c(">=",
+               ">=",
+               ">=",
+               "<=",
+               "<=",
+               "<=",
+               ">=",
+               ">=",
+               ">=",
+               "<=",
+               "<=")
+ 
+ n_foods <- nrow(food_df)
+ diag_matrix <- diag(n_foods)
+ final_matrix <- rbind(base_constraints, diag_matrix)
+ final_rhs <- c(base_rhs, rep(15, n_foods))
+ final_dir <- c(base_dir, rep("<=", n_foods))
+ 
+ utility_scores <- food_df$price_100g * stats::runif(n_foods, 0.8, 1.2)
+ 
+ solution <- lpSolve::lp(direction = "max", objective.in = utility_scores, const.mat = final_matrix, const.dir = final_dir, const.rhs = final_rhs)
+ 
+ if (solution$status == 0) {
+   food_df$amount_100g <- solution$solution
+   return(food_df %>%
+            dplyr::filter(amount_100g > 0.01) %>%
+            dplyr::mutate(total_cost = amount_100g * price_100g, total_protein = amount_100g * protein_g, total_fat = amount_100g * fat_g, total_carb = amount_100g * carb_g))
+ }
+ 
+ NULL
+}
+ 
+ 
+ 
 server <- function(input, output, session) {
   
   # --- Macro Calculator ---
@@ -331,228 +406,90 @@ server <- function(input, output, session) {
   })
   
   # --- Grocery Optimizer ---
-  excluded_ids <- reactiveVal(integer(0))
   
-  observeEvent(input$exclude_food_id, {
-    id <- as.integer(input$exclude_food_id)
-    excluded_ids(unique(c(excluded_ids(), id)))
+  
+  opt_targets <- reactive({
+    shiny::req(input$cal, protein_min_g())
+    daily_cal <- as.numeric(input$cal)
+    daily_p <- protein_min_g()
+    daily_f <- (daily_cal * 0.25) / 9
+    cals_from_p_f <- (daily_p * 4) + (daily_f * 9)
+    daily_c <- max(0, (daily_cal - cals_from_p_f) / 4)
+    list(p = daily_p, f = daily_f, c = daily_c)
   })
   
-  observeEvent(input$reset_exclusions, {
-    excluded_ids(integer(0))
-  })
   
-  budget_day <- reactive({
-    req(input$budget)
-    as.numeric(input$budget) / 30
-  })
-  
-  protein_min_g_groc <- reactive({
-    req(input$weight_lb_groc, input$goal_groc, input$lift_frequency_groc)
+  grocery_data <- shiny::eventReactive(input$generate_grocery, {
+    shiny::req(input$grocery_budget, opt_targets())
+    targets <- opt_targets()
     
-    base_g_lb <- switch(
-      as.character(input$goal_groc),
-      "1" = 0.75,
-      "2" = 1.00,
-      "3" = 0.75,
-      "4" = 0.80,
-      "5" = 0.80,
-      0.75
-    )
+    weekly_budget_cap <- (as.numeric(input$grocery_budget) * 0.90) / 4
     
-    lift_bump <- switch(
-      input$lift_frequency_groc,
-      "lift_none" = 0,
-      "lift_low"  = 0.05,
-      "lift_mid"  = 0.08,
-      "lift_high" = 0.10,
-      0.05
-    )
+    base_foods <- food_catalog
+    weekly_plans <- list()
     
-    (base_g_lb + lift_bump) * as.numeric(input$weight_lb_groc)
-  })
-  
-  target_calories_groc <- reactive({
-    req(input$cal_groc)
-    as.numeric(input$cal_groc)
-  })
-  
-  opt_foods <- reactive({
-    df <- food_catalog
-    
-    if (length(excluded_ids()) > 0) {
-      df <- df %>% dplyr::filter(!id %in% excluded_ids())
+    for (i in 1:4) {
+      basket <- get_optimal_basket(base_foods, targets$p, targets$f, targets$c, weekly_budget_cap)
+      
+      if (is.null(basket)) {
+        shiny::showNotification("Could not find a valid diet! Try increasing budget.", type = "error")
+        return(NULL)
+      }
+      
+      basket <- basket %>% 
+        dplyr::mutate(Week = i)
+      weekly_plans[[i]] <- basket
+      
+      base_foods <- base_foods %>% 
+        dplyr::mutate(price_100g = ifelse(id %in% basket$id, price_100g * 1.5, price_100g))
     }
     
-    df %>%
-      dplyr::filter(
-        !is.na(price_100g), price_100g > 0,
-        !is.na(kcal_100g),  kcal_100g > 0,
-        !is.na(protein_g),
-        !is.na(carb_g),
-        !is.na(fat_g)
-      )
+    dplyr::bind_rows(weekly_plans)
   })
   
-  optimizer_solution <- reactive({
-    df <- opt_foods()
-    validate(need(nrow(df) > 0, "No Foods Available"))
+  output$grocery_summary <- shiny::renderText({
+    plan <- grocery_data()
+    t <- opt_targets()
+    shiny::req(plan, t)
     
-    n_foods <- nrow(df)
+    total_cost <- sum(plan$total_cost)
+    safe_max <- as.numeric(input$grocery_budget) * 0.90
     
-    cost_per_g <- df$price_100g / 100
-    prot_per_g <- df$protein_g / 100
-    carb_per_g <- df$carb_g / 100
-    fat_per_g  <- df$fat_g / 100
-    kcal_per_g <- df$kcal_100g / 100
+    msg <- paste0("Targeting (Daily): ", round(t$p), "g Protein, ", round(t$f), "g Fat, ", round(t$c), "g Carbs. ")
+    msg2 <- paste0("Total: $", round(total_cost, 2), " (", round(total_cost / safe_max * 100), "% of allocated funds).")
     
-    protein_target_g <- as.numeric(protein_min_g_groc())
-    calorie_target_kcal <- as.numeric(target_calories_groc())
-    
-    tol <- as.numeric(input$cal_tol_pct) / 100
-    calorie_min_kcal <- calorie_target_kcal * (1 - tol)
-    calorie_max_kcal <- calorie_target_kcal * (1 + tol)
-    
-    min_g <- as.numeric(input$min_serv_g)
-    max_g <- as.numeric(input$max_serv_g)
-    
-    daily_budget <- budget_day()
-    
-    constraints <- list(
-      values = rbind(
-        prot_per_g,
-        kcal_per_g,
-        kcal_per_g,
-        cost_per_g
-      ),
-      direction = c(">=", ">=", "<=", "<="),
-      limit = c(protein_target_g, calorie_min_kcal, calorie_max_kcal, daily_budget)
-    )
-    
-    min_g <- 0
-    max_g <- 1000
-    
-    solution <- lpSolve::lp(
-      direction   = "min",
-      objective.in = cost_per_g,
-      const.mat   = constraints$values,
-      const.dir   = constraints$direction,
-      const.rhs   = constraints$limit,
-      lower       = rep(min_g, n_foods),
-      upper       = rep(max_g, n_foods),
-      all.int     = FALSE
-    )
-    
-    validate(need(solution$status == 0, "No Feasible Solution"))
-    
-    grams_day <- solution$solution
-    
-    plan_day <- df %>%
-      dplyr::mutate(
-        grams_day = grams_day,
-        cost_day = grams_day * cost_per_g,
-        kcal_day = grams_day * kcal_per_g,
-        protein_day = grams_day * prot_per_g,
-        carb_day = grams_day * carb_per_g,
-        fat_day = grams_day * fat_per_g
-      ) %>%
-      dplyr::filter(grams_day > 1e-6)
-    
-    days <- as.numeric(input$days)
-    
-    summary <- plan_day %>%
-      dplyr::summarise(
-        foods = dplyr::n(),
-        cost_day = sum(cost_day),
-        kcal_day = sum(kcal_day),
-        protein_day = sum(protein_day),
-        carb_day = sum(carb_day),
-        fat_day = sum(fat_day),
-        cost_period = cost_day * days
-      )
-    
-    list(
-      plan_day = plan_day,
-      summary = summary,
-      days = days
-    )
+    HTML(paste0(msg, "<br>", msg2))
   })
   
-  output$budget_label <- renderUI({
-    tags$b(paste0("Daily budget: $", format(round(budget_day(), 2), nsmall = 2)))
-  })
-  
-  output$grocery_stats <- renderUI({
-    s <- optimizer_solution()$summary
-    tagList(
-      tags$p(tags$b("Plan summary (per day)")),
-      tags$ul(
-        tags$li(paste0("Foods used: ", s$foods)),
-        tags$li(paste0("Cost: $", format(round(s$cost_day, 2), nsmall = 2))),
-        tags$li(paste0("Calories: ", round(s$kcal_day), " kcal")),
-        tags$li(paste0("Protein: ", round(s$protein_day), " g")),
-        tags$li(paste0("Carbs: ", round(s$carb_day), " g")),
-        tags$li(paste0("Fats: ", round(s$fat_day), " g")),
-        tags$li(paste0("Cost (", optimizer_solution()$days, " days): $", format(round(s$cost_period, 2), nsmall = 2)))
-      )
-    )
-  })
-  
-  dt_with_remove <- function(plan_day, sort_col) {
-    df2 <- plan_day %>%
-      dplyr::arrange(dplyr::desc(.data[[sort_col]])) %>%
-      dplyr::transmute(
-        remove = sprintf(
-          '<button class="btn btn-xs btn-danger remove-food" data-id="%s" type="button">x</button>',
-          id
-        ),
-        id,
-        name,
-        grams_day = round(grams_day, 0),
-        macro_g = round(.data[[sort_col]], 1),
-        cost_day = round(cost_day, 2)
-      )
+  output$grocery_receipts <- shiny::renderUI({
+    plan <- grocery_data()
+    shiny::req(plan)
     
-    DT::datatable(
-      df2,
-      escape = FALSE,
-      rownames = FALSE,
-      options = list(
-        dom = "tip",
-        paging = FALSE,
-        scrollY = "650px",
-        scroller = TRUE,
-        columnDefs = list(
-          list(targets = 1, visible = FALSE),
-          list(width = "28px", targets = 0),
-          list(width = "70px", targets = 3),
-          list(width = "70px", targets = 4),
-          list(width = "70px", targets = 5)
+    lapply(1:4, function(w) {
+      week_data <- plan %>% dplyr::filter(Week == w)
+      week_cost <- sum(week_data$total_cost)
+      stats <- paste0("Weekly | P: ", round(sum(week_data$total_protein)), "g | F: ", round(sum(week_data$total_fat)), "g | C: ", round(sum(week_data$total_carb)), "g")
+      stats_daily <- paste0("Daily | P: ", round(sum(week_data$total_protein)/7), "g | F: ", round(sum(week_data$total_fat)/7), "g | C: ", round(sum(week_data$total_carb)/7), "g")
+      
+      shinydashboard::box(
+        title = paste0("Week ", w, " ($", round(week_cost, 2), ")"),
+        width = 3,
+        status = "success",
+        solidHeader = TRUE,
+        tags$div(style = "text-align:center; margin-bottom:5px; font-weight:bold; color:#444;", stats, tags$br(), stats_daily),
+        tags$table(
+          class = "table table-condensed",
+          tags$thead(tags$tr(tags$th("Item"), tags$th("Qty"), tags$th("Cost"))),
+          tags$tbody(apply(week_data, 1, function(row) {
+            g <- round((as.numeric(row["amount_100g"]) * 100) / 10) * 10
+            tags$tr(tags$td(row["name"]), tags$td(paste0(g, "g")), tags$td(paste0("$", round(as.numeric(row["total_cost"]), 2))))
+          }))
         )
-      ),
-      callback = DT::JS(
-        "table.on('click', 'button.remove-food', function(){",
-        "  var id = $(this).attr('data-id');",
-        "  Shiny.setInputValue('exclude_food_id', id, {priority: 'event'});",
-        "});"
       )
-    )
-  }
+    })
+  })  
   
-  output$protein_table <- DT::renderDT({
-    res <- optimizer_solution()
-    dt_with_remove(res$plan_day, "protein_day")
-  }, server = FALSE)
   
-  output$carb_table <- DT::renderDT({
-    res <- optimizer_solution()
-    dt_with_remove(res$plan_day, "carb_day")
-  }, server = FALSE)
-  
-  output$fat_table <- DT::renderDT({
-    res <- optimizer_solution()
-    dt_with_remove(res$plan_day, "fat_day")
-  }, server = FALSE)
   
   # --- Gym Map ---
   shiny::observeEvent(c(input$address, input$map_mode), {
