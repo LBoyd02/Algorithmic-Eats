@@ -1,11 +1,10 @@
 library(shiny)
-library(plotly)
 library(leaflet)
 library(httr2)
 library(googlePolylines)
 library(tidyverse)
 library(lpSolve)
-library(DT)
+library(shinydashboard)
 
 #--- calcs for macro optimizer ---
  weight_simulation <- function(height_cm, 
@@ -419,13 +418,39 @@ server <- function(input, output, session) {
   })
   
   
+  grocery_foods <- reactive({
+    shiny::req(input$grocery_location)
+    
+    df <- food_catalog %>%
+      dplyr::filter(location == input$grocery_location)
+    
+    allergies <- input$grocery_allergies
+    if (is.null(allergies)) allergies <- character(0)
+    
+    if ("Gluten" %in% allergies) {
+      gluten_groups <- c("Cereals, Grains and Pasta", "Breakfast cereals", "Baked Products")
+      df <- df %>% dplyr::filter(!food_group %in% gluten_groups)
+    }
+    if ("Lactose Intolerance" %in% allergies) {
+      df <- df %>% dplyr::filter(food_group != "Dairy and Egg Products")
+    }
+    if ("Nuts" %in% allergies) {
+      df <- df %>% dplyr::filter(food_group != "Nuts and Seeds")
+    }
+    
+    df
+  })
+  
+  
   grocery_data <- shiny::eventReactive(input$generate_grocery, {
     shiny::req(input$grocery_budget, opt_targets())
     targets <- opt_targets()
     
     weekly_budget_cap <- (as.numeric(input$grocery_budget) * 0.90) / 4
     
-    base_foods <- food_catalog
+    base_foods <- grocery_foods()
+    shiny::req(nrow(base_foods) > 0)
+    
     weekly_plans <- list()
     
     for (i in 1:4) {
@@ -447,7 +472,7 @@ server <- function(input, output, session) {
     dplyr::bind_rows(weekly_plans)
   })
   
-  output$grocery_summary <- shiny::renderText({
+  output$grocery_summary <- shiny::renderUI({
     plan <- grocery_data()
     t <- opt_targets()
     shiny::req(plan, t)
@@ -515,9 +540,9 @@ server <- function(input, output, session) {
         httr2::resp_body_json(simplifyVector = TRUE)
       
       # --- (Cleaning Gym Data) ---
-      r$gym_results <- search_results$results %>% 
+      r$gym_results <- search_results$results %>%
         dplyr::filter(user_ratings_total >= 50,
-                      purrr::map_chr(types, 1) == "gym") %>% 
+                      purrr::map_chr(types, 1) == "gym") %>%
         dplyr::transmute(
           Gym_Name = name,
           Reference = reference,
@@ -530,11 +555,11 @@ server <- function(input, output, session) {
           Rating_Amount = user_ratings_total
         ) %>%
         # Accounts for multiple of the exact same Gym Names
-        dplyr::group_by(Gym_Name) %>% 
-        dplyr::mutate(Num = dplyr::row_number(Gym_Name), 
+        dplyr::group_by(Gym_Name) %>%
+        dplyr::mutate(Num = dplyr::row_number(Gym_Name),
                       Count = NROW(Gym_Name),
                       Name = dplyr::if_else(Count > 1, paste(Gym_Name, Num), Gym_Name)) %>%
-        dplyr::ungroup() %>% 
+        dplyr::ungroup() %>%
         dplyr::select(-c(Count, Gym_Name, Num))
       
       r$closest_gyms <- r$gym_results %>%
@@ -566,11 +591,11 @@ server <- function(input, output, session) {
       
       shiny::req(r$gym_results)
       shiny::updateSelectInput(
-        session = session, 
-        inputId = "selected_gym", 
+        session = session,
+        inputId = "selected_gym",
         label = "Gym Selected",
         choices = sort(unique(r$gym_results$Name)),
-        selected = sort(unique(r$gym_results$Name))[1]
+        selected = r$closest_gyms$Name[1]
       )
       r$route_response <- NULL
     }
@@ -616,9 +641,30 @@ server <- function(input, output, session) {
   output$gym_map <- leaflet::renderLeaflet({
     shiny::req(r$gym_results, r$route_response, r$closest_gyms)
     if (!is.null(googlePolylines::decode(r$route_response$routes$polyline$encodedPolyline)[[1]])){ 
-      route_duration <- lubridate::seconds_to_period(as.numeric(gsub("\\D", "", r$route_response$routes$duration)))
+      
+      dur_sec <- readr::parse_number(r$route_response$routes$duration[1])
+      dur_min <- as.integer(round(dur_sec / 60))
+      route_duration <- paste0(dur_min, " min")
+      
       target_gym <- r$gym_results %>% 
         dplyr::filter(Name == input$selected_gym)
+      
+      # floating legend for gym selected
+      dist_m <- as.numeric(r$route_response$routes$distanceMeters[1])
+      dist_km <- round(dist_m / 1000, 2)
+      
+      rating_val <- target_gym$Rating[1]
+      rating_n   <- target_gym$Rating_Amount[1]
+      
+      info_html <- paste0(
+        "<div class='info legend' style='", legend_font, " padding: 6px 8px;'>",
+        "<b>", input$selected_gym, "</b><br>",
+        "Rating: <b>", rating_val, "</b> &#9734; (", rating_n, " reviews)</b><br>",
+        "Distance: <b>", dist_km, " km</b><br>",
+        "Duration: <b>", route_duration, "</b><br>",
+        "</div>"
+      )
+      # -------
       
       leaflet::leaflet(data = r$gym_results) %>%
         leaflet::addProviderTiles(providers$CartoDB.Positron) %>%
@@ -691,16 +737,16 @@ server <- function(input, output, session) {
           color = "#000000",
           popup = ~paste0(
             "<div style='", main_font, "'>",
-            "<b>", "Selected Gym: </b>", input$selected_gym, "<br>", 
-            "<b>Duration:</b> ", route_duration, 
-            "<br><b>Distance (m):</b> ", format(r$route_response$routes$distanceMeters, big.mark = ","),
+            "<b>", "Selected Gym: </b>", input$selected_gym, "<br>",
+            "<b>Distance: </b>", format(round(as.numeric(r$route_response$routes$distanceMeters[1]) / 1000, 2), nsmall = 2, big.mark = ","), " km",
+            "</b><br><b>Duration:</b> ", route_duration,
             "</div>"
           ),
         ) %>% 
         # Legend to Show 5 Closest Gyms
         leaflet::addLegend(
           position = "bottomright",
-          title = paste0("Time if ", ifelse(input$map_mode == "driving", "Driving:", "Walking:")),
+          title = paste0("Time if ", ifelse(input$map_mode == "driving", "driving", "walking"), " to closest gyms:"),
           labels = ~paste0("<b>", r$closest_gyms$Name, ": ", "</b>", r$closest_gyms$Drive_Time),
           colors = ~gym_colors
         ) %>% 
@@ -709,7 +755,8 @@ server <- function(input, output, session) {
           ~min(r$gym_results$Latitude),
           ~max(r$gym_results$Longitude),
           ~max(r$gym_results$Latitude)
-        )
+        ) %>%
+        leaflet::addControl(html = info_html, position = "bottomleft")
       }
   })
 }
