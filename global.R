@@ -1,7 +1,6 @@
 library(tidyverse)
 library(readr)
 library(stringr)
-library(janitor)
 
 # --- Gym Map Global Variables & Functions ---
 r <- shiny::reactiveValues()
@@ -121,17 +120,16 @@ build_model_foods <- function() {
   cnf <- get_cnf_data()
   cnf_macros <- make_cnf_macros(cnf$food_names, cnf$nutrient_amount, cnf$food_group)
   prices_latest <- prices %>%
-  dplyr::filter(location == "Canada") %>%
-  dplyr::group_by(statcan_product) %>% 
+  dplyr::group_by(location, statcan_product) %>% 
   dplyr::filter(date == max(date, na.rm = TRUE)) %>%
   dplyr::ungroup() %>%
   dplyr::mutate(price_100g = statcan_price_to_100g(statcan_product, statcan_price), food_name = stringr::str_squish(stringr::str_remove(statcan_product, ",.*$"))) %>% 
   dplyr::inner_join(food_bridge, by = "statcan_product") %>%
   dplyr::left_join(cnf_macros %>% 
   dplyr::select(food_id, food_group_name, protein_g, carb_g, fat_g), by = "food_id") %>%
-  dplyr::transmute(id = food_id, name = food_name, food_group = food_group_name, price_100g = round(price_100g, 4), protein_g, carb_g, fat_g) %>%
+  dplyr::transmute(location = location, id = food_id, name = food_name, food_group = food_group_name, price_100g = round(price_100g, 4), protein_g, carb_g, fat_g) %>%
   dplyr::filter(!is.na(price_100g), !is.na(protein_g), !is.na(carb_g), !is.na(fat_g)) %>%
-  dplyr::group_by(id) %>%
+  dplyr::group_by(location, id) %>%
   dplyr::slice_max(order_by = price_100g, n = 1, with_ties = FALSE) %>%
   dplyr::ungroup()
 }
@@ -166,10 +164,7 @@ food_catalog <- raw_foods_data %>%
     !is.na(price_100g), price_100g > 0,
     !is.na(kcal_100g),  kcal_100g > 0
   ) %>%
-  select(
-    id, name, food_group, price_100g,
-    protein_g, carb_g, fat_g, kcal_100g
-  )
+  select(location, id, name, food_group, price_100g, protein_g, carb_g, fat_g, kcal_100g)
 
 total_inches <- 48:(7 * 12)
 
