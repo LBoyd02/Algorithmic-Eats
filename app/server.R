@@ -358,27 +358,29 @@ server <- function(input, output, session) {
     )
   })
   
-  output$weight_plot <- renderPlot({
-    df <- sim_data()
+  output$weight_plot <- renderPlotly({
+    df <- sim_data() %>% 
+      dplyr::mutate(Weight = weight_lb,
+                    Fat_Free_Mass = ffm_lb) %>% 
+      tidyr::pivot_longer(cols = c(Weight, Fat_Free_Mass),
+                          names_to = "series",
+                          values_to = "value")
     
-    ggplot(df, aes(x = week)) +
-      geom_line(aes(y = weight_lb, color = "Weight"), linewidth = 2) +
-      geom_line(aes(y = ffm_lb, color = "Fat-Free Mass"), linewidth = 1.5, linetype = "dashed") +
-      scale_color_manual(
-        values = c(
-          "Weight" = "limegreen",
-          "Fat-Free Mass" = "firebrick2"
-        )
-      ) +
-      scale_y_continuous(expand = expansion(mult = c(0.5, 0.5))) +
-      labs(
-        title = "Projected Weight Over Time",
-        x = "Week",
-        y = "weight (lb)"
+    plotly::plot_ly(df,
+                    x = ~week,
+                    y = ~value,
+                    color = ~series,
+                    colors = c("firebrick2", "limegreen"),
+                    type = "scatter",
+                    mode = "lines") %>% 
+      plotly::layout(
+        title = "Projected Weight & Fat-Free Mass over Time",
+        xaxis = list(title = "Week"),
+        yaxis = list(title = "Weight (lb)")
       )
   })    
   
-  output$comparison_plot <- renderPlot({
+  output$comparison_plot <- renderPlotly({
     df <- sim_data()
     now <- df[1, ]
     yr <- df[nrow(df), ]
@@ -391,9 +393,21 @@ server <- function(input, output, session) {
     
     comp$time <- factor(comp$time, levels = c("Today", "1 Year"))
     
-    ggplot(comp, aes(x = time, y = value, fill = component)) +
-      geom_col() +
-      labs(title = "Body Composition (Fat vs Lean)", x = NULL, y = "Pounds") 
+   plotly::plot_ly(
+     comp,
+     x = ~time,
+     y = ~value,
+     color = ~component,
+     colors = c("firebrick2", "limegreen"),
+     type = "bar"
+   ) %>% 
+     plotly::layout(
+       barmode = "stack",
+       title = "Body Composition (Body Fat vs Total Weight)",
+       xaxis = list(title = ""),
+       yaxis = list(title = "Pounds")
+     )
+    
   })
   
   # --- Grocery Optimizer ---

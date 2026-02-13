@@ -167,12 +167,12 @@ shiny::shinyUI(
                                 title = "Progression",
                                 width = 8,
                                 tabPanel("Forecast",
-                                     plotOutput("weight_plot", height = 730)
+                                     plotlyOutput("weight_plot", height = 730)
                                     ),
                                 
                                 
                                 tabPanel("Body Composition",
-                                  plotOutput("comparison_plot", height = 730)
+                                  plotlyOutput("comparison_plot", height = 730)
                                 )
                                )
                               )

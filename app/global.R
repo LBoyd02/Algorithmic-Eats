@@ -6,6 +6,7 @@ library(googlePolylines)
 library(tidyverse)
 library(lpSolve)
 library(shinydashboard)
+library(plotly)
 
 # --- Gym Map Global Variables & Functions ---
 r <- shiny::reactiveValues()
