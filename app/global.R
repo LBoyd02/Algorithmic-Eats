@@ -12,7 +12,17 @@ library(plotly)
 r <- shiny::reactiveValues()
 gym_colors <- c("#F67028", "#499CD4", "#E0463E","#E1F628", "#8149D4")
 
-api_key <- readr::read_file("./map_api_key.txt")
+
+
+# for docker key
+api_key <- Sys.getenv("MAP_API_KEY")
+if (identical(api_key, "")) stop("MAP_API_KEY env var is not set.")
+
+# for local api key
+#api_key <- readr::read_file("./map_api_key.txt")
+
+
+
 main_font <- "font-family: 'Times New Roman', serif; font-size: 14px;"
 legend_font <- "font-family: 'Times New Roman', serif; font-size: 18px;"
 label_font <- list(

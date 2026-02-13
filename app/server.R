@@ -433,7 +433,7 @@ server <- function(input, output, session) {
     allergies <- input$grocery_allergies
     if (is.null(allergies)) allergies <- character(0)
     
-    if ("Gluten" %in% allergies) {
+    if ("Celiac" %in% allergies) {
       gluten_groups <- c("Cereals, Grains and Pasta", "Breakfast cereals", "Baked Products")
       df <- df %>% dplyr::filter(!food_group %in% gluten_groups)
     }
@@ -486,8 +486,8 @@ server <- function(input, output, session) {
     total_cost <- sum(plan$total_cost)
     safe_max <- as.numeric(input$grocery_budget) * 0.90
     
-    msg <- paste0("Targeting (Daily): ", round(t$p), "g Protein, ", round(t$f), "g Fat, ", round(t$c), "g Carbs. ")
-    msg2 <- paste0("Total: $", round(total_cost, 2), " (", round(total_cost / safe_max * 100), "% of allocated funds).")
+    msg <- paste0("Targeting (Daily): ", round(t$p), "g Protein, ", round(t$f), "g Fat, ", round(t$c), "g Carbs ")
+    msg2 <- paste0("Total: $", round(total_cost, 2), " (using 90% of budget to accomodate staple food purchases)")
     
     HTML(paste0(msg, "<br>", msg2))
   })

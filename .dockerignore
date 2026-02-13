@@ -1,0 +1,6 @@
+.git
+.Rhistory
+.Rproj.user
+*.Rproj
+**/.DS_Store
+map_api_key.txt

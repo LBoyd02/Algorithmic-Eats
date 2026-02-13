@@ -104,7 +104,7 @@ shiny::shinyUI(
         shiny::checkboxGroupInput(
           "grocery_allergies",
           "Allergies (remove food groups)",
-          choices = c("Gluten", "Lactose Intolerance", "Nuts")
+          choices = c("Celiac", "Lactose Intolerance", "Nuts")
         ),
         shiny::numericInput("grocery_budget", "Monthly Budget ($)", value = 500, min = 100, step = 50),
         shiny::actionButton("generate_grocery", "Generate Monthly Plan", class = "btn-success")
@@ -139,7 +139,7 @@ shiny::shinyUI(
     #Goal Input
                                       sliderInput(
                                         "goal",
-                                        "Goal (1-5)",
+                                        "Select your goal to see optimized calorie and protein consumption",
                                         min = 1, max = 5, value = 3, step = 1,
                                         ticks = FALSE
                                       ),
