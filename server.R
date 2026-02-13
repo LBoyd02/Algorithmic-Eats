@@ -1,11 +1,3 @@
-library(shiny)
-library(leaflet)
-library(httr2)
-library(googlePolylines)
-library(tidyverse)
-library(lpSolve)
-library(shinydashboard)
-
 #--- calcs for macro optimizer ---
  weight_simulation <- function(height_cm, 
                                weight_lb, 
