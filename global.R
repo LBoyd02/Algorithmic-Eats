@@ -5,7 +5,6 @@ library(shiny)
 library(leaflet)
 library(httr2)
 library(googlePolylines)
-library(tidyverse)
 library(lpSolve)
 library(shinydashboard)
 
