@@ -28,3 +28,5 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: lboyd02/algorithmic-eats:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
