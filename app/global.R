@@ -15,11 +15,11 @@ gym_colors <- c("#F67028", "#499CD4", "#E0463E","#E1F628", "#8149D4")
 
 
 # for docker key
-#api_key <- Sys.getenv("MAP_API_KEY")
-#if (identical(api_key, "")) stop("MAP_API_KEY env var is not set.")
+api_key <- Sys.getenv("MAP_API_KEY")
+if (identical(api_key, "")) stop("MAP_API_KEY env var is not set.")
 
 # for local api key
-api_key <- readr::read_file("./map_api_key.txt")
+#api_key <- readr::read_file("./map_api_key.txt")
 
 
 
