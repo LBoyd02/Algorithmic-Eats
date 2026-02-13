@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 rocker/shiny-verse:latest
+FROM rocker/shiny-verse:latest
 
 RUN apt-get update && apt-get install -y git
 
