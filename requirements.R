@@ -1,6 +1,6 @@
 options(repos = c(CRAN = "https://cloud.r-project.org"))
 
-p <- c("tidyverse","shiny","leaflet","httr2","googlePolylines","lpSolve","shinydashboard","plotly")
+p <- c("tidyverse","shiny","leaflet","httr2","googlePolylines","lpSolve","shinydashboard","plotly", "s2", "raster", "sf", "units")
 
 to_install <- setdiff(p, rownames(installed.packages()))
 if (length(to_install)) {
