@@ -1,6 +1,4 @@
 library(tidyverse)
-library(readr)
-library(stringr)
 library(shiny)
 library(leaflet)
 library(httr2)
